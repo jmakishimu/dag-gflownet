@@ -80,8 +80,9 @@ class DAGGFlowNet:
 
         # Mixture of GFlowNet policy and uniform policy
         is_exploration = random.bernoulli(
-            subkey1, p=1. - epsilon, shape=(batch_size, 1))
+            subkey1, p=epsilon, shape=(batch_size, 1)) # <-- CORRECTED
         log_pi = jnp.where(is_exploration, log_uniform, log_pi)
+
 
         # Sample actions
         actions = batch_random_choice(subkey2, jnp.exp(log_pi), masks)

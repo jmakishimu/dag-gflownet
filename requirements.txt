@@ -1,7 +1,8 @@
+# [File: jax-dag-gflownet/requirements.txt]
 numpy
 scipy
 jax
-gym>=0.22.0
+
 pandas
 dm-haiku
 optax
@@ -9,3 +10,6 @@ pgmpy
 networkx
 tqdm
 scikit-learn
+flax
+optuna
+plotly>=5.0.0

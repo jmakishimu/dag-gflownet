@@ -7,8 +7,18 @@ from dag_gflownet.scores.base import BaseScore, LocalScore
 
 
 def logdet(array):
-    _, logdet = np.linalg.slogdet(array)
-    return logdet
+    # FIX: Make logdet robust to singular/non-positive definite matrices
+        # --- BEGIN CORRECTION ---
+    # Add diagonal jitter for numerical stability
+    array = array + 1e-3 * np.eye(array.shape[0])
+    # --- END CORRECTION ---
+    sign, logdet_val = np.linalg.slogdet(array)
+    if sign <= 0:
+        # If the matrix is singular (det=0) or not positive definite (det<0),
+        # the log-likelihood is invalid (log(det) -> -inf), making the score
+        # extremely low and preventing crashes.
+        return -np.inf
+    return logdet_val
 
 
 class BGeScore(BaseScore):
@@ -81,26 +91,37 @@ class BGeScore(BaseScore):
         )
 
     def local_score(self, target, indices):
-        num_parents = len(indices)
+            num_parents = len(indices)
 
-        if indices:
-            variables = [target] + list(indices)
+            if indices:
+                variables = [target] + list(indices)
 
-            log_term_r = (
-                0.5 * (self.num_samples + self.alpha_w - self.num_variables + num_parents)
-                * logdet(self.R[np.ix_(indices, indices)])
-                - 0.5 * (self.num_samples + self.alpha_w - self.num_variables + num_parents + 1)
-                * logdet(self.R[np.ix_(variables, variables)])
+                # --- BEGIN MODIFICATION ---
+                # Calculate log-determinants separately to catch -inf
+                logdet_parents = logdet(self.R[np.ix_(indices, indices)])
+                logdet_vars = logdet(self.R[np.ix_(variables, variables)])
+
+                # Check for invalid log-determinants before subtraction to avoid nan
+                if logdet_parents == -np.inf or logdet_vars == -np.inf:
+                    log_term_r = -np.inf
+                else:
+                    # Original calculation (now safe)
+                    log_term_r = (
+                        0.5 * (self.num_samples + self.alpha_w - self.num_variables + num_parents)
+                        * logdet_parents
+                        - 0.5 * (self.num_samples + self.alpha_w - self.num_variables + num_parents + 1)
+                        * logdet_vars
+                    )
+                # --- END MODIFICATION ---
+            else:
+                log_term_r = (-0.5 * (self.num_samples + self.alpha_w - self.num_variables + 1)
+                    * np.log(np.abs(self.R[target, target])))
+
+            return LocalScore(
+                key=(target, tuple(indices)),
+                score=self.log_gamma_term[num_parents] + log_term_r,
+                prior=self.prior(num_parents)
             )
-        else:
-            log_term_r = (-0.5 * (self.num_samples + self.alpha_w - self.num_variables + 1)
-                * np.log(np.abs(self.R[target, target])))
-
-        return LocalScore(
-            key=(target, tuple(indices)),
-            score=self.log_gamma_term[num_parents] + log_term_r,
-            prior=self.prior(num_parents)
-        )
 
     def get_local_scores(self, target, indices, indices_after=None):
         all_indices = indices if (indices_after is None) else indices_after

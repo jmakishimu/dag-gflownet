@@ -15,8 +15,8 @@ class ReplayBuffer:
             ('num_edges', np.int_, (1,)),
             ('actions', np.int_, (1,)),
             ('is_exploration', np.bool_, (1,)),
-            ('delta_scores', np.float_, (1,)),
-            ('scores', np.float_, (1,)),
+            ('delta_scores', np.float64, (1,)),
+            ('scores', np.float64, (1,)),
             ('mask', np.uint8, (nbytes,)),
             ('next_adjacency', np.uint8, (nbytes,)),
             ('next_mask', np.uint8, (nbytes,))
@@ -63,7 +63,7 @@ class ReplayBuffer:
         for name in data:
             shape = self._replay.dtype[name].shape
             self._replay[name][add_idx] = np.asarray(data[name].reshape(-1, *shape))
-        
+
         if prev_indices is not None:
             self._prev[add_idx] = prev_indices[~dones]
 
@@ -135,7 +135,7 @@ class ReplayBuffer:
             'adjacency': np.zeros(shape, dtype=np.float32),
             'num_edges': np.zeros((1,), dtype=np.int_),
             'actions': np.zeros((1,), dtype=np.int_),
-            'delta_scores': np.zeros((1,), dtype=np.float_),
+            'delta_scores': np.zeros((1,), dtype=np.float64),
             'mask': np.zeros(shape, dtype=np.float32),
             'next_adjacency': np.zeros(shape, dtype=np.float32),
             'next_mask': np.zeros(shape, dtype=np.float32)

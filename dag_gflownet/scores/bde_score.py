@@ -21,7 +21,7 @@ class BDeScore(BaseScore):
         corresponds to one variable. If there is interventional data, the
         interventional targets must be specified in the "INT" column (the
         indices of interventional targets are assumed to be 1-based).
-    
+
     prior : `BasePrior` instance
         The prior over graphs p(G).
 
@@ -51,13 +51,23 @@ class BDeScore(BaseScore):
         state_counts_before, state_counts_after = self.state_counts(
             target, indices, indices_after=indices_after)
 
-        local_score_after = self.local_score(*state_counts_after)
+        local_score_after = self._local_score_from_counts(*state_counts_after)
         if state_counts_before is not None:
-            local_score_before = self.local_score(*state_counts_before)
+            local_score_before = self._local_score_from_counts(*state_counts_before)
         else:
             local_score_before = None
 
         return (local_score_before, local_score_after)
+
+    def local_score(self, target, indices):
+        """Compute the BDe score for a single variable and its parents."""
+        # This is the expected signature in evaluate.py/BGeScore
+        _, state_counts_after = self.state_counts(
+            target, indices, indices_after=None)
+
+        # state_counts_after is a namedtuple: StateCounts(key, counts)
+        return self._local_score_from_counts(*state_counts_after)
+
 
     def state_counts(self, target, indices, indices_after=None):
         # Source: pgmpy.estimators.BaseEstimator.state_counts()
@@ -68,14 +78,28 @@ class BDeScore(BaseScore):
         data = self.data[self._interventions != target]
         data = data[[variable] + parents].dropna()
 
-        state_count_data = (data.groupby([variable] + parents)
-                                .size()
-                                .unstack(parents))
+        # --- BEGIN FIX ---
+        if parents:
+            # --- FIX 2: Add observed=True to silence pandas FutureWarning ---
+            state_count_data = (data.groupby([variable] + parents, observed=True)
+                                    .size()
+                                    .unstack(parents))
+        else:
+            # When no parents, groupby just returns counts for the variable
+            # --- FIX 2: Add observed=True to silence pandas FutureWarning ---
+            state_count_data = data.groupby([variable], observed=True).size().to_frame()
+        # --- END FIX ---
+
 
         if not isinstance(state_count_data.columns, pd.MultiIndex):
-            state_count_data.columns = pd.MultiIndex.from_arrays(
-                [state_count_data.columns]
-            )
+            # This handles the case where parents=[] and we created a single-col DataFrame
+            if not parents:
+                 # Give it a "null" column name to be consistent with from_product
+                 state_count_data.columns = pd.MultiIndex.from_product([[]], names=parents)
+            else:
+                 state_count_data.columns = pd.MultiIndex.from_arrays(
+                    [state_count_data.columns]
+                 )
 
         parent_states = [self.state_names[parent] for parent in parents]
         columns_index = pd.MultiIndex.from_product(parent_states, names=parents)
@@ -90,9 +114,11 @@ class BDeScore(BaseScore):
         if indices_after is not None:
             subset_parents = [self.column_names[index] for index in indices]
             if subset_parents:
-                data = (state_counts_after.counts
-                    .groupby(axis=1, level=subset_parents)
-                    .sum())
+                # --- FIX 3: Update pandas groupby(axis=1) to new .T.groupby().T syntax ---
+                data = (state_counts_after.counts.T
+                    .groupby(level=subset_parents)
+                    .sum()
+                    .T)
             else:
                 data = state_counts_after.counts.sum(axis=1).to_frame()
 
@@ -105,12 +131,13 @@ class BDeScore(BaseScore):
 
         return (state_counts_before, state_counts_after)
 
-    def local_score(self, key, counts):
+    def _local_score_from_counts(self, key, counts):
         counts = np.asarray(counts)
         num_parents_states = counts.shape[1]
         num_parents = len(key[1])
 
-        log_gamma_counts = np.zeros_like(counts, dtype=np.float_)
+        # --- FIX 1: Replaced np.float_ with np.float64 ---
+        log_gamma_counts = np.zeros_like(counts, dtype=np.float64)
         alpha = self.equivalent_sample_size / num_parents_states
         beta = self.equivalent_sample_size / counts.size
 
@@ -118,7 +145,8 @@ class BDeScore(BaseScore):
         gammaln(counts + beta, out=log_gamma_counts)
 
         # Compute the log-gamma conditional sample size
-        log_gamma_conds = np.sum(counts, axis=0, dtype=np.float_)
+        # --- FIX 1: Replaced np.float_ with np.float64 ---
+        log_gamma_conds = np.sum(counts, axis=0, dtype=np.float64)
         gammaln(log_gamma_conds + alpha, out=log_gamma_conds)
 
         local_score = (

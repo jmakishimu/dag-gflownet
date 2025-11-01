@@ -4,7 +4,7 @@ import optax
 
 from tqdm.auto import trange
 from jax import nn, lax, random
-
+import jax
 
 MASKED_VALUE = -1e5
 
@@ -92,20 +92,22 @@ def detailed_balance_loss(
     return (loss, logs)
 
 
-def log_policy(logits, stop, masks):
-    masks = masks.reshape(logits.shape)
-    masked_logits = mask_logits(logits, masks)
-    can_continue = jnp.any(masks, axis=-1, keepdims=True)
+def log_policy(logits, stop, mask):
+    """Computes the log-policy."""
+    # --- START FIX: Correct mask reshaping ---
+    # The mask comes in as (N, N), e.g., (10, 10).
+    # The logits come in as (K, N*N), e.g., (5, 100) OR (N*N,) e.g. (100,)
+    # We must flatten the mask to (N*N,) and let it broadcast.
+    mask_flat = mask.reshape(-1) # Shape (N*N,)
 
-    logp_continue = (nn.log_sigmoid(-stop)
-        + nn.log_softmax(masked_logits, axis=-1))
-    logp_stop = nn.log_sigmoid(stop)
+    # Broadcast mask_flat to match logits shape (handles both K, N*N and N*N)
+    mask = jnp.broadcast_to(mask_flat, logits.shape)
+    # --- END FIX ---
 
-    # In case there is no valid action other than stop
-    logp_continue = jnp.where(can_continue, logp_continue, MASKED_VALUE)
-    logp_stop = logp_stop * can_continue
-
-    return jnp.concatenate((logp_continue, logp_stop), axis=-1)
+    # --- Original code was this ---
+    logits = jnp.where(mask, logits, MASKED_VALUE)
+    logits_stop = jnp.concatenate((logits, stop), axis=-1)
+    return jax.nn.log_softmax(logits_stop, axis=-1)
 
 
 def uniform_log_policy(masks):
@@ -163,15 +165,21 @@ def posterior_estimate(
         Additional information for logging purposes.
     """
     samples = []
-    observations = env.reset()
+    observations_tuple = env.reset()
+    current_obs_dict = observations_tuple[0]
     with trange(num_samples, disable=(not verbose), **kwargs) as pbar:
         while len(samples) < num_samples:
-            order = observations['order']
-            actions, key, _ = gflownet.act(params, key, observations, 1.)
-            observations, _, dones, _ = env.step(np.asarray(actions))
+            # FIX 1: Use 'current_obs_dict' which holds the current state
+            order = current_obs_dict['order']
+            actions, key, logs = gflownet.act(params, key, current_obs_dict, 0.)
+            next_observations, _, dones, truncated, _ = env.step(np.asarray(actions))
 
             samples.extend([order[i] for i, done in enumerate(dones) if done])
             pbar.update(min(num_samples - pbar.n, np.sum(dones).item()))
+
+            # FIX 2: Update the state for the next loop iteration
+            current_obs_dict = next_observations
+
     orders = np.stack(samples[:num_samples], axis=0)
     logs = {
         'orders': orders,

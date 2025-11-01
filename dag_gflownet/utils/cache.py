@@ -10,15 +10,28 @@ class LRUCache:
         # newest
         self.tail = [self.head, None, None, None]
         self.head[_NEXT] = self.tail
-
+        
     def __setitem__(self, key, value):
-        link = self.mapping.get(key, self.head)
+        link = self.mapping.get(key)  # Check for existing link
 
-        if link is not self.head:
-            raise KeyError(f'Key {key} already in cache.')
+        if link:
+            # --- START FIX: Handle existing key ---
+            # Key already exists. Update its value and move it to the tail.
+            # 1. Unlink from current position
+            link_prev, link_next, _, _ = link
+            link_prev[_NEXT] = link_next
+            link_next[_PREV] = link_prev
 
+            # 2. Add as most recently used (to the tail)
+            last = self.tail[_PREV]
+            link = [last, self.tail, key, value]  # Update value in link
+            self.mapping[key] = last[_NEXT] = self.tail[_PREV] = link
+            return  # Done
+            # --- END FIX ---
+
+        # Key is new.
         if len(self.mapping) >= self.max_size:
-            # Unlink the least recently used element
+            # Evict the least recently used element (at the head)
             _, old_next, old_key, _ = self.head[_NEXT]
             self.head[_NEXT] = old_next
             old_next[_PREV] = self.head

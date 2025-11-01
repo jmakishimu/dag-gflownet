@@ -1,3 +1,4 @@
+# In dag_gflownet/utils/sampling.py
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -17,12 +18,20 @@ def sample_from_linear_gaussian(model, num_samples, rng=default_rng()):
     for node in nx.topological_sort(model):
         cpd = model.get_cpds(node)
 
+        # The 'beta' attribute is a list: [intercept, coeff1, coeff2, ...]
         if cpd.evidence:
             values = np.vstack([samples[parent] for parent in cpd.evidence])
-            mean = cpd.mean[0] + np.dot(cpd.mean[1:], values)
-            samples[node] = rng.normal(mean, cpd.variance)
+            # Use beta[0] for intercept, beta[1:] for coefficients
+            intercept = cpd.beta[0]
+            coefficients = cpd.beta[1:]
+            mean = intercept + np.dot(coefficients, values)
+            # --- FIX 3: Replaced cpd.variance with cpd.std ---
+            samples[node] = rng.normal(mean, cpd.std)
         else:
-            samples[node] = rng.normal(cpd.mean[0], cpd.variance, size=(num_samples,))
+            # Use beta[0] for intercept when there's no evidence
+            intercept = cpd.beta[0]
+            # --- FIX 3: Replaced cpd.variance with cpd.std ---
+            samples[node] = rng.normal(intercept, cpd.std, size=(num_samples,))
 
     return samples
 

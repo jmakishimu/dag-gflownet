@@ -7,7 +7,7 @@ LocalScore = namedtuple('LocalScore', ['key', 'score', 'prior'])
 
 class BaseScore(ABC):
     """Base class for the scorer.
-    
+
     Parameters
     ----------
     data : pd.DataFrame
@@ -35,7 +35,7 @@ class BaseScore(ABC):
                     target, indices, indices_after=indices_after)
 
                 out_queue.put((True, *local_score_after))
-                if local_score_before is not None:
+                if local_score_before is not None and local_score_before.key != local_score_after.key:
                     out_queue.put((True, *local_score_before))
 
         except (KeyboardInterrupt, Exception):
@@ -49,10 +49,10 @@ class BaseScore(ABC):
 
 class BasePrior(ABC):
     """Base class for the prior over graphs p(G).
-    
+
     Any subclass of `BasePrior` must return the contribution of log p(G) for a
     given variable with `num_parents` parents. We assume that the prior is modular.
-    
+
     Parameters
     ----------
     num_variables : int (optional)

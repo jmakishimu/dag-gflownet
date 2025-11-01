@@ -22,7 +22,7 @@ def download(url, filename):
 
     with open(filename, 'wb') as f:
         f.write(file_content)
-    
+
     return filename
 
 
@@ -50,7 +50,7 @@ def get_data(name, args, rng=default_rng()):
             Path('data/sachs.data.txt')
         )
         data = pd.read_csv(filename, delimiter='\t', dtype=float)
-        data = (data - data.mean()) / data.std()  # Standardize data
+        #data = (data - data.mean()) / data.std()  # Standardize data
         score = 'bge'
 
     elif name =='sachs_interventional':
@@ -61,7 +61,7 @@ def get_data(name, args, rng=default_rng()):
         )
         data = pd.read_csv(filename, delimiter=' ', dtype='category')
         score = 'bde'
-    
+
     else:
         raise ValueError(f'Unknown graph type: {name}')
 
