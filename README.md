@@ -1,5 +1,3 @@
-\<img src="jmakishimu/dag-gflownet/dag-gflownet-ea4a80007859baefc9f48ed388398406f0be564e/\_assets/dag\_gflownet.png" align="right" width="40%"/\>
-
 # DAG-GFlowNet with Mixture of Experts
 
 [Paper](https://arxiv.org/abs/2202.13903) - [Installation](#installation) - [Basic Training](#basic-training) - [Full Experimentation Workflow](#full-experimentation-workflow) - [Citation](#citation)
@@ -214,10 +212,5 @@ It will also print a summary table of the final metrics to the console.
 If you use the original DAG-GFlowNet work, please cite:
 
 ```
-@article{deleu2022daggflownet,
-    title={{Bayesian Structure Learning with Generative Flow Networks}},
-    author={Deleu, Tristan and G{\'o}is, Ant{\'o}nio and Emezue, Chris and Rankawat, Mansi and Lacoste-Julien, Simon and Bauer, Stefan and Bengio, Yoshua},
-    journal={arXiv preprint},
-    year={2022}
-}
+TBD
 ```
